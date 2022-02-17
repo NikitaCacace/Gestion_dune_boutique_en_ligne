@@ -1,0 +1,264 @@
+---
+title: "P05-Cacace-NotebookR"
+author: "Nikita Cacace"
+date: "23/09/2021"
+output:
+  html_document: default
+  pdf_document: 
+    toc: yes
+    fig_width: 3
+    fig_height: 2
+    fig_caption: yes
+    number_sections: yes
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+![](Logo%20de%20Bottleneck "logo")
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\#\#Import des fichiers:
+
+```{r}
+Erp <- read.csv("C:/Users/leroc/Dropbox/2020 - 2021 OpenClassrooms, MOOC et conférences/05 - Optimisez la gestion des données d'une boutique avec R ou Python/ERP.csv", sep=";")
+
+Liaison <- read.csv("C:/Users/leroc/Dropbox/2020 - 2021 OpenClassrooms, MOOC et conférences/05 - Optimisez la gestion des données d'une boutique avec R ou Python/liaison.csv", sep=";")
+
+Web <- read.csv("C:/Users/leroc/Dropbox/2020 - 2021 OpenClassrooms, MOOC et conférences/05 - Optimisez la gestion des données d'une boutique avec R ou Python/web.csv", sep=";", comment.char="#")
+```
+
+\#\#Packages
+
+```{r}
+library(dplyr)
+library(tidyr)
+```
+
+## Observation et nettoyages de dataframes:
+
+# Erp:
+
+```{r}
+mode(Erp)
+```
+
+ERP est donc une liste on le veux en dataframe
+
+```{r}
+as.data.frame(Erp,
+              row.names = NULL, 
+              optional = FALSE,
+              cut.names = FALSE,
+              col.names = names(x), 
+              fix.empty.names = TRUE,
+              stringsAsFactors = default.stringsAsFactors())
+```
+
+```{r}
+str(Erp)
+```
+
+On obtient un DataFrame, sous les noms des colonnes on trouve leur type:
+-product_id est int on le veux en chr -stock_quantity est bien un int
+-onsale_web devrait être considéré comme un booléen (logical) mais il
+peut pour l'utilisation actuelle resté int -price est numérique
+-stock_status est bien une chr
+
+Par contre le nom de product_id à changer de nom, il faut le renommé
+
+```{r}
+Erp <- rename(Erp,"product_id" = "ï..product_id")
+str(Erp)
+```
+
+pas réussis à changer de type
+
+On compte les valeurs et on cherche les valeurs manquantes
+
+```{r}
+sapply(Erp, function(x) length(x))
+```
+
+Aucune valeur manquante, il y a 825 tulpes dans notre dataframe Erp
+
+# Web:
+
+```{r}
+mode(Web)
+```
+
+Web est donc une liste on le veux en dataframe
+
+```{r}
+as.data.frame(Web,
+              row.names = NULL, 
+              optional = FALSE,
+              cut.names = FALSE,
+              col.names = names(x), 
+              fix.empty.names = TRUE,
+              stringsAsFactors = default.stringsAsFactors())
+```
+
+```{r}
+str(Web)
+```
+
+Ici on a beaucoup de colonnes qui posent potentiellement problème: -
+post_date, post_date_gmt, post_modified et post_modified_gmt sont des
+datetimes et non des chr - virtual, downlodable, rating_count,
+average_rating, post_parent, menu_order et comment_count sont toujours
+vides ou égales à zéro, sont elles vraiment utiles ? Nous les gardons
+pour le moment. Idem taxe_class, post_content, post_password et
+post_content_filtered sont toujours vides. Leur mode n'est pour le
+moment pas modifier - Post_status comment_status, ping_status,
+post_type, post_author et post_mime_type sont comme précédement des
+booléens en quelques sorte, il peut être interressant à l'avenir de les
+modifier selon leur importance.
+
+```{r}
+Web <- rename(Web, sku = ï..sku)
+as.character(Web$sku)
+as.Date.character(Web$post_date,'%Y-%m-%d %H:%M:%S')
+as.Date.character(Web$post_date_gmt,'%Y-%m-%d %H:%M:%S')
+as.Date.character(Web$post_modified,'%Y-%m-%d %H:%M:%S')
+as.Date.character(Web$post_modified_gmt,'%Y-%m-%d %H:%M:%S')
+is.factor(Web$Onesale_web)
+str(Web)
+```
+
+On compte les valeurs nulles
+
+```{r}
+sapply(Web,function(x) sum(is.na(x)))
+```
+
+average_rating, total_sales, menu_order, comment_count et post_parent
+ont 83 valeurs manquantes, cela correspond en fait à des lignes vides,
+on peu les supprimer tax_class, post_content_filtered, post_password
+sont des colones vides
+
+```{r}
+Web <- subset(Web,
+               !is.na(Web$menu_order))
+sapply(Web,function(x) sum(is.na(x)))
+```
+
+# Liaison
+
+```{r}
+mode(Liaison)
+```
+
+```{r}
+as.data.frame(Liaison,
+              row.names = NULL, 
+              optional = FALSE,
+              cut.names = FALSE,
+              col.names = names(x), 
+              fix.empty.names = TRUE,
+              stringsAsFactors = default.stringsAsFactors())
+```
+
+```{r}
+Liaison <- rename (Liaison, "product_id" = "ï..product_id")
+Liaison <- rename (Liaison, "sku" = "id_web")
+str(Liaison)
+```
+
+product_id n'est pas int mais chr et on doit changer son nom
+
+```{r}
+
+as.character(Liaison$product_id)
+str(Liaison)
+
+```
+
+```{r}
+sapply(Liaison,function(x) sum(is.na(x)))
+```
+
+Donc là on ne detecte pas les cases vides............
+
+## Mission:
+
+# Rapprocher ERP et Liaison
+
+faire equ duplicate
+
+```{r}
+Interm <- full_join(Erp,Liaison,by="product_id")
+```
+
+# Rapprocher Interm et Web
+
+```{r}
+Complet <- right_join (Interm, Web, by="sku")
+```
+
+problème: plus d'observations dans Complet que dans Web.......
+
+# On ne garde que les produits
+
+```{r}
+Complet <- subset(Complet,Complet$post_type == "product")
+```
+
+On retombe sur 896 lignes comme pour la version python
+
+# Chiffre d'affaire par produits
+
+```{r}
+Complet <- transform(Complet, ca_product=Complet$price*Complet$total_sales)
+select(Complet, post_title, ca_product)
+```
+
+# Chiffre d'affaire total
+
+```{r}
+ca_tot <- sum(Complet$price*Complet$total_sales)
+print(ca_tot)
+```
+
+# Analyse des prix
+
+```{r}
+summary(Complet$price)
+IQR(Complet$price)
+var(Complet$price)
+```
+
+# Representation graphique de la répartition
+
+```{r}
+hist(Complet$price)
+```
+
+# Detection numérique des outliers
+
+```{r}
+Lim_Outliers_Inf <- quantile(Complet$price,0,25)-1.5*IQR(Complet$price)
+Lim_Outliers_Sup <- quantile(Complet$price,0,75)+1.5*IQR(Complet$price)
+
+Outliers_Inf <- Complet$price < Lim_Outliers_Inf
+Outliers_Sup <- Complet$price > Lim_Outliers_Sup
+
+print(Lim_Outliers_Inf)
+print(which(Complet$price < Lim_Outliers_Inf))
+
+print(Lim_Outliers_Sup)
+print(which(Complet$price > Lim_Outliers_Sup))
+```
+
+On n'obtient des seuils d'oultiers différents, il n'y a toujours pas
+d'outliers inf mais il y aurait cette fois 174 outliers sup
+
+# Representation graphique des outliers
+
+```{r}
+boxplot(Complet$price)
+```
